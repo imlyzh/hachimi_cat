@@ -1,17 +1,12 @@
-use std::{
-    // mem::{MaybeUninit, uninitialized},
-    time::Duration,
-};
+use std::time::Duration;
 
 use cpal::{
-    self, SampleFormat, SampleRate, StreamConfig,
+    self, SampleFormat, StreamConfig,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use ringbuf::{HeapRb, traits::*};
 
 use hachimi_cat::{audio_processing::audio_processing, constant::*, error};
-
-pub const TARGET_RATE: SampleRate = SampleRate(SAMPLE_RATE as u32);
 
 fn main() -> anyhow::Result<()> {
     let mic_buf = HeapRb::<f32>::new(RB_SIZE);
@@ -59,11 +54,11 @@ fn main() -> anyhow::Result<()> {
     let input_config = supported_input_configs
         .find(|config| {
             config.sample_format() == SampleFormat::F32
-                && config.min_sample_rate() <= TARGET_RATE
-                && config.max_sample_rate() >= TARGET_RATE
+                && config.min_sample_rate() <= SAMPLE_RATE
+                && config.max_sample_rate() >= SAMPLE_RATE
                 && config.channels() <= 1
         })
-        .map(|config| config.with_sample_rate(TARGET_RATE))
+        .map(|config| config.with_sample_rate(SAMPLE_RATE))
         .ok_or(error::Error::UnsupportedInputSampleFormat)?;
 
     let input_config: StreamConfig = input_config.into();
@@ -75,11 +70,11 @@ fn main() -> anyhow::Result<()> {
     let output_config = supported_output_configs
         .find(|config| {
             config.sample_format() == SampleFormat::F32
-                && config.min_sample_rate() <= TARGET_RATE
-                && config.max_sample_rate() >= TARGET_RATE
+                && config.min_sample_rate() <= SAMPLE_RATE
+                && config.max_sample_rate() >= SAMPLE_RATE
                 && config.channels() <= 2
         })
-        .map(|config| config.with_sample_rate(TARGET_RATE))
+        .map(|config| config.with_sample_rate(SAMPLE_RATE))
         .ok_or(error::Error::UnsupportedOutputSampleFormat)?;
 
     let output_config: StreamConfig = output_config.into();
@@ -121,7 +116,7 @@ fn main() -> anyhow::Result<()> {
     )?;
 
     // mic input audio process thread
-    let audio_process =
+    let _audio_process =
         std::thread::spawn(move || audio_processing(mic_cons, far_end_cons, processed_prod));
 
     input_stream.play()?;
