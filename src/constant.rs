@@ -7,5 +7,5 @@ pub const AEC_FFT_SIZE: usize = AEC_FRAME_SIZE * 2;
 pub const STEP_SIZE: f32 = 0.0001;
 
 pub const FILTER_SAMPLE: f32 = SAMPLE_RATE as f32;
-pub const FILTER_LOW_FRE: f32 = 120f32;
+pub const FILTER_LOW_FRE: f32 = 80f32;
 pub const FILTER_HIGH_FRE: f32 = 24000f32;
