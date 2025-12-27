@@ -34,13 +34,13 @@ pub fn audio_processing(
     // .expect("Failed to create coefficients");
 
     // state machine init
-    let mut ref_limiter = SmoothLimiter::new(0.9, 1.0, 80.0, SAMPLE_RATE as f32);
+    let mut ref_limiter = SmoothLimiter::new(0.9, 0.1, 80.0, SAMPLE_RATE as f32);
     let mut noise_gate = VoipSoftGate::new(0.01, 0.001, 1.0, 80.0, SAMPLE_RATE as f32);
     let mut aec_state = FdafAec::<AEC_FFT_SIZE>::new(STEP_SIZE, 0.9, 10e-4);
     let mut denoise = DenoiseState::new();
     let mut mic_hpfilter = DirectForm2Transposed::<f32>::new(coeffs);
     let mut far_end_hpfilter = DirectForm2Transposed::<f32>::new(coeffs);
-    // let mut nlp_filter = DirectForm2Transposed::<f32>::new(coeffs);
+    let mut nlp_filter = DirectForm2Transposed::<f32>::new(coeffs);
 
     // local ringbuffer
     let ref_limit_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE * 4);
@@ -89,7 +89,7 @@ pub fn audio_processing(
         );
 
         nlp(
-            // &mut nlp_filter,
+            &mut nlp_filter,
             &mut noise_gate,
             &mut aec_cons,
             &mut nlp_prod,
@@ -160,7 +160,7 @@ pub fn aec(
 }
 
 pub fn nlp(
-    // nlp_filter: &mut DirectForm2Transposed<f32>,
+    nlp_filter: &mut DirectForm2Transposed<f32>,
     noise_gate: &mut VoipSoftGate,
     cons: &mut impl Consumer<Item = f32>,
     prod: &mut impl Producer<Item = f32>,
@@ -169,9 +169,9 @@ pub fn nlp(
 
     while cons.occupied_len() >= FRAME_SIZE && prod.vacant_len() >= FRAME_SIZE {
         cons.pop_slice(&mut nlp_frame);
-        // for i in nlp_frame.iter_mut() {
-        // *i = nlp_filter.run(*i);
-        // }
+        for i in nlp_frame.iter_mut() {
+            *i = nlp_filter.run(*i);
+        }
         noise_gate.process(&mut nlp_frame);
         sanitize(&mut nlp_frame);
         prod.push_slice(&nlp_frame);
