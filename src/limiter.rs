@@ -1,3 +1,4 @@
+#[derive(Debug, Clone, Copy)]
 pub struct SmoothLimiter {
     threshold: f32,
     attack_coeff: f32,

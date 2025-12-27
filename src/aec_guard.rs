@@ -1,4 +1,9 @@
+use crate::{constant::SAMPLE_RATE, limiter::SmoothLimiter};
+
+#[derive(Debug, Clone, Copy)]
 pub struct AecGuard {
+    init_limiter: SmoothLimiter,
+    limiter: SmoothLimiter,
     assume_frame: usize,
     trigger_threshold: usize,
     cooldown_remaining: usize,
@@ -7,7 +12,10 @@ pub struct AecGuard {
 
 impl AecGuard {
     pub fn new(trigger_threshold: usize, cooldown_limit_frame: usize) -> Self {
+        let limiter = SmoothLimiter::new(0.0001, 10.0, 100.0, SAMPLE_RATE as f32);
         Self {
+            init_limiter: limiter.clone(),
+            limiter,
             trigger_threshold,
             assume_frame: 0,
             cooldown_remaining: 0,
@@ -24,16 +32,15 @@ impl AecGuard {
         if self.assume_frame == self.trigger_threshold {
             self.assume_frame = 0;
             self.cooldown_remaining = self.cooldown_limit_frame;
+            self.limiter = self.init_limiter.clone();
             return true;
         }
 
         if self.cooldown_remaining > 0 {
-            // for (out, mic) in output_frame.iter_mut().zip(mic_frame.iter()) {
-            //     *out = *mic * 0.0001;
-            // }
-            output_frame.fill(0.0);
+            *output_frame = *mic_frame;
+            self.limiter.process(output_frame);
             self.cooldown_remaining -= 1;
-            return true;
+            return false;
         }
 
         if self.is_diverged(mic_frame, output_frame) {
