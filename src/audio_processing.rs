@@ -126,6 +126,7 @@ pub fn limit(
     let mut frame = [0f32; FRAME_SIZE];
     while cons.occupied_len() >= FRAME_SIZE && prod.vacant_len() >= FRAME_SIZE {
         cons.pop_slice(&mut frame);
+        sanitize(&mut frame);
         limiter.process(&mut frame);
         prod.push_slice(&frame);
     }
@@ -155,6 +156,7 @@ pub fn aec(
             mic_frame.first_chunk().unwrap(),
         );
 
+        sanitize(&mut output_frame);
         prod.push_slice(&output_frame);
     }
 }
@@ -201,7 +203,7 @@ fn noiseless(
             *i /= 32767.0f32;
         }
 
-        safety_out(&mut ns_output_frame);
+        sanitize(&mut ns_output_frame);
         prod.push_slice(&ns_output_frame);
     }
 }
@@ -210,11 +212,5 @@ fn sanitize(frame: &mut [f32]) {
     for x in frame.iter_mut() {
         let val = if x.is_finite() { *x } else { 0f32 };
         *x = val.clamp(-1.0, 1.0);
-    }
-}
-
-fn safety_out(frame: &mut [f32]) {
-    for s in frame.iter_mut() {
-        *s = if s.tanh().abs() > 0.99 { 0.0 } else { *s } * 0.3;
     }
 }
