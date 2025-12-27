@@ -13,13 +13,13 @@ use crate::{constant::*, limiter::SmoothLimiter, noise_gate::*};
 type BufProd = <LocalRb<Heap<f32>> as Split>::Prod;
 type BufCons = <LocalRb<Heap<f32>> as Split>::Cons;
 pub struct AudioProcessor {
-    // 外部输入输出 IO (Heap 变体，线程安全，由外部传入)
+    // IO
     mic_cons: HeapCons<f32>,
     ref_cons: HeapCons<f32>,
     mic_prod: HeapProd<f32>,
     ref_prod: HeapProd<f32>,
 
-    // 信号处理状态机 (State Machines)
+    // Singal Process State Machines
     ref_limiter: SmoothLimiter,
     noise_gate: VoipSoftGate,
     aec_state: FdafAec<AEC_FFT_SIZE>,
@@ -28,7 +28,7 @@ pub struct AudioProcessor {
     far_end_hpfilter: DirectForm2Transposed<f32>,
     nlp_filter: DirectForm2Transposed<f32>,
 
-    // 内部环形缓冲区 (LocalRb 变体，单线程/本地使用)
+    // LocalRb
 
     // Reference Limiter Buffer
     ref_limit_prod: BufProd,
