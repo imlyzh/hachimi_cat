@@ -130,7 +130,9 @@ impl AudioProcessor {
             nlp_cons,
         }
     }
+
     pub fn process(&mut self) {
+        // pre process mic
         hpf(
             &mut self.mic_hpfilter,
             &mut self.mic_cons,
