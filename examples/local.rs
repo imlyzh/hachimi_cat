@@ -6,7 +6,7 @@ use cpal::{
 };
 use ringbuf::{HeapRb, traits::*};
 
-use hachimi_cat::{audio_processing::audio_processing, constant::*, error};
+use hachimi_cat::{audio_processing::AudioProcessor, constant::*, error};
 
 fn main() -> anyhow::Result<()> {
     let mic_buf = HeapRb::<f32>::new(RB_SIZE);
@@ -85,7 +85,14 @@ fn main() -> anyhow::Result<()> {
     // mic input audio process thread
     let _audio_process = std::thread::Builder::new()
         .name("Audio Pipeline Thread".to_owned())
-        .spawn(move || audio_processing(mic_cons, processed_cons, processed_prod, speaker_prod));
+        .spawn(move || {
+            let mut filter =
+                AudioProcessor::new(mic_cons, processed_cons, processed_prod, speaker_prod);
+            loop {
+                filter.process();
+                std::thread::sleep(Duration::from_millis(16));
+            }
+        });
 
     input_stream.play()?;
     output_stream.play()?;

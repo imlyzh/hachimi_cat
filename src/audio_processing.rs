@@ -1,5 +1,4 @@
-use std::time::Duration;
-
+use alloc::boxed::Box;
 use biquad::*;
 use fdaf_aec::FdafAec;
 use nnnoiseless::DenoiseState;
@@ -11,93 +10,172 @@ use ringbuf::{
 
 use crate::{constant::*, limiter::SmoothLimiter, noise_gate::*};
 
-pub fn audio_processing(
-    mut mic_cons: HeapCons<f32>,
-    mut ref_cons: HeapCons<f32>,
-    mut mic_prod: HeapProd<f32>,
-    mut ref_prod: HeapProd<f32>,
-) {
-    let coeffs = Coefficients::<f32>::from_params(
-        Type::HighPass,
-        FILTER_SAMPLE.hz(),
-        FILTER_LOW_FRE.hz(),
-        Q_BUTTERWORTH_F32,
-    )
-    .expect("Failed to create coefficients");
+type BufProd = <LocalRb<Heap<f32>> as Split>::Prod;
+type BufCons = <LocalRb<Heap<f32>> as Split>::Cons;
+pub struct AudioProcessor {
+    // 外部输入输出 IO (Heap 变体，线程安全，由外部传入)
+    mic_cons: HeapCons<f32>,
+    ref_cons: HeapCons<f32>,
+    mic_prod: HeapProd<f32>,
+    ref_prod: HeapProd<f32>,
 
-    // let nlp_lpfilter = Coefficients::<f32>::from_params(
-    // Type::LowPass,
-    // FILTER_SAMPLE.hz(),
-    // FILTER_HIGH_FRE.hz(),
-    // Q_BUTTERWORTH_F32,
-    // )
-    // .expect("Failed to create coefficients");
+    // 信号处理状态机 (State Machines)
+    ref_limiter: SmoothLimiter,
+    noise_gate: VoipSoftGate,
+    aec_state: FdafAec<AEC_FFT_SIZE>,
+    denoise: Box<DenoiseState<'static>>,
+    mic_hpfilter: DirectForm2Transposed<f32>,
+    far_end_hpfilter: DirectForm2Transposed<f32>,
+    nlp_filter: DirectForm2Transposed<f32>,
 
-    // state machine init
-    let mut ref_limiter = SmoothLimiter::new(0.9, 0.1, 80.0, SAMPLE_RATE as f32);
-    let mut noise_gate = VoipSoftGate::new(0.01, 0.001, 1.0, 80.0, SAMPLE_RATE as f32);
-    let mut aec_state = FdafAec::<AEC_FFT_SIZE>::new(STEP_SIZE, 0.9, 10e-4);
-    let mut denoise = DenoiseState::new();
-    let mut mic_hpfilter = DirectForm2Transposed::<f32>::new(coeffs);
-    let mut far_end_hpfilter = DirectForm2Transposed::<f32>::new(coeffs);
-    let mut nlp_filter = DirectForm2Transposed::<f32>::new(coeffs);
+    // 内部环形缓冲区 (LocalRb 变体，单线程/本地使用)
 
-    // local ringbuffer
-    let ref_limit_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE * 4);
-    let (mut ref_limit_prod, mut ref_limit_cons) = ref_limit_rb.split();
-    let dispatch_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE * 4);
-    let (mut dispatch_prod, mut dispatch_cons) = dispatch_rb.split();
+    // Reference Limiter Buffer
+    ref_limit_prod: BufProd,
+    ref_limit_cons: BufCons,
 
-    let hpf_mic_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4);
-    let (mut hpf_mic_prod, mut hpf_mic_cons) = hpf_mic_rb.split();
-    let hpf_ref_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4);
-    let (mut hpf_ref_prod, mut hpf_ref_cons) = hpf_ref_rb.split();
+    // Dispatch Buffer
+    dispatch_prod: BufProd,
+    dispatch_cons: BufCons,
 
-    let aec_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4);
-    let (mut aec_prod, mut aec_cons) = aec_rb.split();
+    // HighPassFilter Mic Buffer
+    hpf_mic_prod: BufProd,
+    hpf_mic_cons: BufCons,
 
-    let nlp_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4);
-    let (mut nlp_prod, mut nlp_cons) = nlp_rb.split();
+    // HighPassFilter Ref Buffer
+    hpf_ref_prod: BufProd,
+    hpf_ref_cons: BufCons,
 
-    // signal process main loop
-    loop {
-        // pre process mic input HighPassFilter
-        hpf(&mut mic_hpfilter, &mut mic_cons, &mut hpf_mic_prod);
+    // AEC Buffer
+    aec_prod: BufProd,
+    aec_cons: BufCons,
+
+    // NLP Buffer
+    nlp_prod: BufProd,
+    nlp_cons: BufCons,
+}
+impl AudioProcessor {
+    pub fn new(
+        mic_cons: HeapCons<f32>,
+        ref_cons: HeapCons<f32>,
+        mic_prod: HeapProd<f32>,
+        ref_prod: HeapProd<f32>,
+    ) -> Self {
+        let coeffs = Coefficients::<f32>::from_params(
+            Type::HighPass,
+            FILTER_SAMPLE.hz(),
+            FILTER_LOW_FRE.hz(),
+            Q_BUTTERWORTH_F32,
+        )
+        .expect("Failed to create coefficients");
+
+        // let nlp_lpfilter = Coefficients::<f32>::from_params(
+        // Type::LowPass,
+        // FILTER_SAMPLE.hz(),
+        // FILTER_HIGH_FRE.hz(),
+        // Q_BUTTERWORTH_F32,
+        // )
+        // .expect("Failed to create coefficients");
+
+        // state machine init
+        let ref_limiter = SmoothLimiter::new(0.9, 0.1, 80.0, SAMPLE_RATE as f32);
+        let noise_gate = VoipSoftGate::new(0.01, 0.001, 1.0, 80.0, SAMPLE_RATE as f32);
+        let aec_state = FdafAec::<AEC_FFT_SIZE>::new(STEP_SIZE, 0.9, 10e-4);
+        let denoise = DenoiseState::new();
+        let mic_hpfilter = DirectForm2Transposed::<f32>::new(coeffs);
+        let far_end_hpfilter = DirectForm2Transposed::<f32>::new(coeffs);
+        let nlp_filter = DirectForm2Transposed::<f32>::new(coeffs);
+
+        // local ringbuffer
+        let ref_limit_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE * 4);
+        let (ref_limit_prod, ref_limit_cons) = ref_limit_rb.split();
+        let dispatch_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE * 4);
+        let (dispatch_prod, dispatch_cons) = dispatch_rb.split();
+
+        let hpf_mic_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4);
+        let (hpf_mic_prod, hpf_mic_cons) = hpf_mic_rb.split();
+        let hpf_ref_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4);
+        let (hpf_ref_prod, hpf_ref_cons) = hpf_ref_rb.split();
+
+        let aec_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4);
+        let (aec_prod, aec_cons) = aec_rb.split();
+
+        let nlp_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4);
+        let (nlp_prod, nlp_cons) = nlp_rb.split();
+
+        Self {
+            mic_cons,
+            ref_cons,
+            mic_prod,
+            ref_prod,
+            ref_limiter,
+            noise_gate,
+            aec_state,
+            denoise,
+            mic_hpfilter,
+            far_end_hpfilter,
+            nlp_filter,
+            ref_limit_prod,
+            ref_limit_cons,
+            dispatch_prod,
+            dispatch_cons,
+            hpf_mic_prod,
+            hpf_mic_cons,
+            hpf_ref_prod,
+            hpf_ref_cons,
+            aec_prod,
+            aec_cons,
+            nlp_prod,
+            nlp_cons,
+        }
+    }
+    pub fn process(&mut self) {
+        hpf(
+            &mut self.mic_hpfilter,
+            &mut self.mic_cons,
+            &mut self.hpf_mic_prod,
+        );
         // pre process far end ref
-        limit(&mut ref_limiter, &mut ref_cons, &mut ref_limit_prod);
+        limit(
+            &mut self.ref_limiter,
+            &mut self.ref_cons,
+            &mut self.ref_limit_prod,
+        );
 
         // ref dispatch
-        while ref_limit_cons.occupied_len() >= FRAME_SIZE
-            && ref_prod.vacant_len() >= FRAME_SIZE
-            && hpf_ref_prod.vacant_len() >= FRAME_SIZE
+        while self.ref_limit_cons.occupied_len() >= FRAME_SIZE
+            && self.ref_prod.vacant_len() >= FRAME_SIZE
+            && self.hpf_ref_prod.vacant_len() >= FRAME_SIZE
         {
             let mut frame = [0f32; FRAME_SIZE];
-            ref_limit_cons.pop_slice(&mut frame);
-            ref_prod.push_slice(&frame);
-            dispatch_prod.push_slice(&frame);
+            self.ref_limit_cons.pop_slice(&mut frame);
+            self.ref_prod.push_slice(&frame);
+            self.dispatch_prod.push_slice(&frame);
         }
 
         // pre process far end ref HighPassFilter
-        hpf(&mut far_end_hpfilter, &mut dispatch_cons, &mut hpf_ref_prod);
+        hpf(
+            &mut self.far_end_hpfilter,
+            &mut self.dispatch_cons,
+            &mut self.hpf_ref_prod,
+        );
 
         // aec (echo cancel)
         aec(
-            &mut aec_state,
-            &mut hpf_mic_cons,
-            &mut hpf_ref_cons,
-            &mut aec_prod,
+            &mut self.aec_state,
+            &mut self.hpf_mic_cons,
+            &mut self.hpf_ref_cons,
+            &mut self.aec_prod,
         );
 
         nlp(
-            &mut nlp_filter,
-            &mut noise_gate,
-            &mut aec_cons,
-            &mut nlp_prod,
+            &mut self.nlp_filter,
+            &mut self.noise_gate,
+            &mut self.aec_cons,
+            &mut self.nlp_prod,
         );
 
-        noiseless(&mut denoise, &mut nlp_cons, &mut mic_prod);
-
-        std::thread::sleep(Duration::from_millis(16));
+        noiseless(&mut self.denoise, &mut self.nlp_cons, &mut self.mic_prod);
     }
 }
 
