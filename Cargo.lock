@@ -463,7 +463,7 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 [[package]]
 name = "fdaf-aec"
 version = "0.3.0"
-source = "git+https://github.com/imlyzh/fdaf-aec#1b59b760a8f2b9e512c3e51a4dce49bfed8b2801"
+source = "git+https://github.com/imlyzh/fdaf-aec#f908ac3dcb4c613cda7cf0c2f636bafdf674948e"
 dependencies = [
  "nalgebra",
  "num-complex",

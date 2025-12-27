@@ -4,7 +4,7 @@ pub const RB_SIZE: usize = FRAME_SIZE * 4;
 
 pub const AEC_FRAME_SIZE: usize = 512;
 pub const AEC_FFT_SIZE: usize = AEC_FRAME_SIZE * 2;
-pub const STEP_SIZE: f32 = 0.0001;
+pub const STEP_SIZE: f32 = 0.1;
 
 pub const FILTER_SAMPLE: f32 = SAMPLE_RATE as f32;
 pub const FILTER_LOW_FRE: f32 = 100f32;

@@ -1,6 +1,7 @@
 #![no_std]
 extern crate alloc;
 
+pub mod aec_guard;
 pub mod audio_processing;
 pub mod constant;
 pub mod error;

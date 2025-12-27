@@ -8,7 +8,7 @@ use ringbuf::{
     traits::{Consumer, Observer, Producer, Split},
 };
 
-use crate::{constant::*, limiter::SmoothLimiter, noise_gate::*};
+use crate::{aec_guard::AecGuard, constant::*, limiter::SmoothLimiter, noise_gate::*};
 
 type BufProd = <LocalRb<Heap<f32>> as Split>::Prod;
 type BufCons = <LocalRb<Heap<f32>> as Split>::Cons;
@@ -23,7 +23,9 @@ pub struct AudioProcessor {
     // Singal Process State Machines
     ref_limiter: SmoothLimiter,
     noise_gate: VoipSoftGate,
+    aec_init_state: FdafAec<AEC_FFT_SIZE>,
     aec_state: FdafAec<AEC_FFT_SIZE>,
+    aec_guard: AecGuard,
     denoise: Box<DenoiseState<'static>>,
     mic_hpfilter: DirectForm2Transposed<f32>,
     far_end_hpfilter: DirectForm2Transposed<f32>,
@@ -81,7 +83,8 @@ impl AudioProcessor {
         // state machine init
         let ref_limiter = SmoothLimiter::new(0.9, 0.1, 80.0, SAMPLE_RATE as f32);
         let noise_gate = VoipSoftGate::new(0.01, 0.001, 1.0, 80.0, SAMPLE_RATE as f32);
-        let aec_state = FdafAec::<AEC_FFT_SIZE>::new(STEP_SIZE, 0.9, 10e-4, 10e-6);
+        let aec_state = FdafAec::<AEC_FFT_SIZE>::new(STEP_SIZE, 0.9, 10e-2, 10e-6);
+        let aec_guard = AecGuard::new(5, 30);
         let denoise = DenoiseState::new();
         let mic_hpfilter = DirectForm2Transposed::<f32>::new(coeffs);
         let far_end_hpfilter = DirectForm2Transposed::<f32>::new(coeffs);
@@ -111,7 +114,9 @@ impl AudioProcessor {
             ref_prod,
             ref_limiter,
             noise_gate,
+            aec_init_state: aec_state.clone(),
             aec_state,
+            aec_guard,
             denoise,
             mic_hpfilter,
             far_end_hpfilter,
@@ -166,6 +171,8 @@ impl AudioProcessor {
         // aec (echo cancel)
         aec(
             &mut self.aec_state,
+            &self.aec_init_state,
+            &mut self.aec_guard,
             &mut self.hpf_mic_cons,
             &mut self.hpf_ref_cons,
             &mut self.aec_prod,
@@ -215,6 +222,8 @@ pub fn limit(
 
 pub fn aec(
     aec: &mut FdafAec<AEC_FFT_SIZE>,
+    inited_aec: &FdafAec<AEC_FFT_SIZE>,
+    guard: &mut AecGuard,
     mic_cons: &mut impl Consumer<Item = f32>,
     ref_cons: &mut impl Consumer<Item = f32>,
     prod: &mut impl Producer<Item = f32>,
@@ -237,7 +246,9 @@ pub fn aec(
             mic_frame.first_chunk().unwrap(),
         );
 
-        sanitize(&mut output_frame);
+        if guard.examine_and_protect(&mic_frame, &mut output_frame) {
+            *aec = inited_aec.clone();
+        }
         prod.push_slice(&output_frame);
     }
 }
