@@ -81,7 +81,7 @@ impl AudioProcessor {
         // state machine init
         let ref_limiter = SmoothLimiter::new(0.9, 0.1, 80.0, SAMPLE_RATE as f32);
         let noise_gate = VoipSoftGate::new(0.01, 0.001, 1.0, 80.0, SAMPLE_RATE as f32);
-        let aec_state = FdafAec::<AEC_FFT_SIZE>::new(STEP_SIZE, 0.9, 10e-4);
+        let aec_state = FdafAec::<AEC_FFT_SIZE>::new(STEP_SIZE, 0.9, 10e-4, 10e-6);
         let denoise = DenoiseState::new();
         let mic_hpfilter = DirectForm2Transposed::<f32>::new(coeffs);
         let far_end_hpfilter = DirectForm2Transposed::<f32>::new(coeffs);
