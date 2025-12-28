@@ -76,7 +76,7 @@ fn main() -> anyhow::Result<()> {
             loop {
                 filter.process();
                 // TODO: dynamic runtime modify
-                std::thread::park_timeout(Duration::from_millis(20));
+                std::thread::park_timeout(Duration::from_millis(10));
             }
         })
         .unwrap();
