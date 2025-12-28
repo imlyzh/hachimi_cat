@@ -1334,7 +1334,12 @@ dependencies = [
 name = "hacore"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "cpal",
  "libhachimi",
+ "opus",
+ "ringbuf",
+ "thiserror 2.0.17",
 ]
 
 [[package]]

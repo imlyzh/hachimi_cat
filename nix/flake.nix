@@ -117,8 +117,9 @@
               pkgs.libtool
               pkgs.cmake
               # cmake-compat
-              pkgs.opusTools
-              # pkgs.libopus
+              pkgs.libopus
+              # pkgs.opusTools
+
 
             ] ++ lib.optionals stdenv.isLinux [ pkgs.alsa-lib.dev ];
 

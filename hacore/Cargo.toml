@@ -5,6 +5,17 @@ edition = "2024"
 
 [dependencies]
 libhachimi = { path = "../libhachimi" }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+# tracing = { workspace = true }
+ringbuf = { workspace = true }
+
+cpal = { workspace = true }
+opus = { workspace = true }
+
+# tokio = { workspace = true }
+# iroh = { workspace = true }
+
 # bytes = "1.11.0"
 # rand = "0.9.2"
 # uuid = { version = "1.19.0", features = ["v7", "serde", "fast-rng"] }

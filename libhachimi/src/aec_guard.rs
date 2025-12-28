@@ -14,7 +14,7 @@ impl AecGuard {
     pub fn new(trigger_threshold: usize, cooldown_limit_frame: usize) -> Self {
         let limiter = SmoothLimiter::new(0.0001, 10.0, 100.0, SAMPLE_RATE as f32);
         Self {
-            init_limiter: limiter.clone(),
+            init_limiter: limiter,
             limiter,
             trigger_threshold,
             assume_frame: 0,
@@ -32,7 +32,7 @@ impl AecGuard {
         if self.assume_frame == self.trigger_threshold {
             self.assume_frame = 0;
             self.cooldown_remaining = self.cooldown_limit_frame;
-            self.limiter = self.init_limiter.clone();
+            self.limiter = self.init_limiter;
             return true;
         }
 
