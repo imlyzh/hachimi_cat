@@ -51,7 +51,16 @@
           system,
           ...
         }:
-        {
+        let
+          inherit (pkgs) lib stdenv;
+
+  cmake-compat = pkgs.writeShellScriptBin "cmake" ''
+    exec ${pkgs.cmake}/bin/cmake \
+      -DCMAKE_POLICY_DEFAULT_CMP0000=OLD \
+      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+      "$@"
+  '';
+        in {
           # 1. 这里覆盖当前系统的 pkgs，注入 rust-overlay
           # 这样在下面的 packages 列表中就可以直接使用 pkgs.rust-bin 了
           _module.args.pkgs = import inputs.nixpkgs {
@@ -100,10 +109,23 @@
               # WebAssembly 工具
               pkgs.wasm-bindgen-cli
               pkgs.wasm-pack
-              pkgs.alsa-lib.dev
-            ];
+
+              # build tools
+              pkgs.pkg-config
+              pkgs.autoconf
+              pkgs.automake
+              pkgs.libtool
+              pkgs.cmake
+              # cmake-compat
+              pkgs.opusTools
+              # pkgs.libopus
+
+            ] ++ lib.optionals stdenv.isLinux [ pkgs.alsa-lib.dev ];
 
           };
         };
+  #       shellHook = ''
+  #   export CMAKE_ARGS="-DCMAKE_POLICY_DEFAULT_CMP0000=OLD -DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+  # '';
     };
 }

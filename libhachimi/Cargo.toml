@@ -1,0 +1,15 @@
+[package]
+name = "libhachimi"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+# tracing = { workspace = true }
+ringbuf = { workspace = true }
+fdaf-aec = { git = "https://github.com/imlyzh/fdaf-aec" }
+nnnoiseless = "0.5.2"
+biquad = "0.5.0"
+rustfft = "6.4.1"
+num-complex = "0.4.6"

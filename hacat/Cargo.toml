@@ -1,0 +1,17 @@
+[package]
+name = "hacat"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+libhachimi = { path = "../libhachimi" }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+# tracing = { workspace = true }
+ringbuf = { workspace = true }
+
+cpal = { workspace = true }
+opus = { workspace = true }
+
+tokio = { workspace = true }
+iroh = { workspace = true }

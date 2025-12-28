@@ -6,7 +6,7 @@ use cpal::{
 };
 use ringbuf::{HeapRb, traits::*};
 
-use hachimi_cat::{audio_processing::AudioProcessor, constant::*, error};
+use libhachimi::{audio_processing::AudioProcessor, constant::*, error};
 
 fn main() -> anyhow::Result<()> {
     let mic_buf = HeapRb::<f32>::new(RB_SIZE);
