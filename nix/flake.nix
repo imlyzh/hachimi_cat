@@ -116,15 +116,14 @@
               pkgs.pkg-config
               pkgs.autoconf
               pkgs.automake
-              pkgs.libtool
               pkgs.cmake
               # cmake-compat
+              pkgs.webrtc-audio-processing
               pkgs.libopus
-              # pkgs.opusTools
 
-
-            ] ++ lib.optionals stdenv.isLinux [ pkgs.alsa-lib.dev ];
-
+            ]
+            ++ lib.optionals stdenv.isLinux [ pkgs.libtool pkgs.alsa-lib.dev ]
+            ++ lib.optionals stdenv.isDarwin [ pkgs.glibtool ];
           };
         };
   #       shellHook = ''

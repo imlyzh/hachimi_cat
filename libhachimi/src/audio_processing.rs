@@ -10,8 +10,8 @@ use ringbuf::{
 
 use crate::{aec_guard::AecGuard, constant::*, limiter::SmoothLimiter, noise_gate::*};
 
-type BufProd = <LocalRb<Heap<f32>> as Split>::Prod;
-type BufCons = <LocalRb<Heap<f32>> as Split>::Cons;
+pub type BufProd = <LocalRb<Heap<f32>> as Split>::Prod;
+pub type BufCons = <LocalRb<Heap<f32>> as Split>::Cons;
 
 pub struct AudioProcessor {
     // Singal Process State Machines
@@ -87,21 +87,19 @@ impl AudioProcessor {
         let nlp_filter = DirectForm2Transposed::<f32>::new(coeffs);
 
         // local ringbuffer
-        let ref_limit_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE * 4);
-        let (ref_limit_prod, ref_limit_cons) = ref_limit_rb.split();
-        let dispatch_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE * 4);
-        let (dispatch_prod, dispatch_cons) = dispatch_rb.split();
+        let (ref_limit_prod, ref_limit_cons) = LocalRb::<Heap<f32>>::new(FRAME_SIZE * 4).split();
+        let (dispatch_prod, dispatch_cons) = LocalRb::<Heap<f32>>::new(FRAME_SIZE * 4).split();
 
-        let hpf_mic_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4);
-        let (hpf_mic_prod, hpf_mic_cons) = hpf_mic_rb.split();
-        let hpf_ref_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4);
-        let (hpf_ref_prod, hpf_ref_cons) = hpf_ref_rb.split();
+        let (hpf_mic_prod, hpf_mic_cons) =
+            LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4).split();
+        let (hpf_ref_prod, hpf_ref_cons) =
+            LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4).split();
 
-        let aec_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4);
-        let (aec_prod, aec_cons) = aec_rb.split();
+        let (aec_prod, aec_cons) =
+            LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4).split();
 
-        let nlp_rb = LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4);
-        let (nlp_prod, nlp_cons) = nlp_rb.split();
+        let (nlp_prod, nlp_cons) =
+            LocalRb::<Heap<f32>>::new(FRAME_SIZE.max(AEC_FRAME_SIZE) * 4).split();
 
         Self {
             ref_limiter,
@@ -262,7 +260,7 @@ pub fn nlp(
     }
 }
 
-fn noiseless(
+pub fn noiseless(
     denoise: &mut DenoiseState,
     cons: &mut impl Consumer<Item = f32>,
     prod: &mut impl Producer<Item = f32>,
@@ -290,7 +288,7 @@ fn noiseless(
     }
 }
 
-fn sanitize(frame: &mut [f32]) {
+pub fn sanitize(frame: &mut [f32]) {
     for x in frame.iter_mut() {
         let val = if x.is_finite() { *x } else { 0f32 };
         *x = val.clamp(-1.0, 1.0);

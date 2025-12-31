@@ -1,3 +1,5 @@
+pub mod webrtc_audio_processing;
+
 use std::{sync::Arc, thread::JoinHandle};
 
 use cpal::{
@@ -6,7 +8,10 @@ use cpal::{
 };
 use ringbuf::{HeapCons, HeapRb, traits::*};
 
-use libhachimi::{audio_processing::AudioProcessor, constant::*, error};
+// use libhachimi::audio_processing::AudioProcessor;
+use libhachimi::{constant::*, error};
+
+use crate::webrtc_audio_processing::{AudioProcessor, FRAME20MS};
 
 pub struct AudioEngine {
     input_stream: Stream,
@@ -68,16 +73,16 @@ impl AudioEngine {
 
         // buffer init
 
-        let mic_buf = HeapRb::<f32>::new(RB_SIZE);
+        let mic_buf = HeapRb::<f32>::new(FRAME20MS * 2);
         let (mut mic_prod, mic_cons) = mic_buf.split();
 
-        let speaker_buf = HeapRb::<f32>::new(RB_SIZE);
+        let speaker_buf = HeapRb::<f32>::new(FRAME20MS * 2);
         let (speaker_prod, mut speaker_cons) = speaker_buf.split();
 
-        let ap_to_encoder = HeapRb::<f32>::new(RB_SIZE);
+        let ap_to_encoder = HeapRb::<f32>::new(FRAME20MS * 2);
         let (ap_mic_output, mut encoder_input) = ap_to_encoder.split();
 
-        let decoder_to_ap = HeapRb::<f32>::new(RB_SIZE);
+        let decoder_to_ap = HeapRb::<f32>::new(FRAME20MS * 2);
         let (mut decoder_output, ap_ref_input) = decoder_to_ap.split();
 
         // start threads
@@ -107,7 +112,7 @@ impl AudioEngine {
         let audio_process = std::thread::Builder::new()
             .name("Audio Pipeline Thread".to_owned())
             .spawn(move || {
-                let mut ap = AudioProcessor::new();
+                let mut ap = AudioProcessor::build().unwrap();
                 let mut mic_cons = mic_cons;
                 let mut ap_ref_input = ap_ref_input;
                 let mut ap_mic_output = ap_mic_output;

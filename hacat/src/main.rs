@@ -71,10 +71,10 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::signal::ctrl_c().await?;
 
-    for service in running_services {
-        // TODO: safety close connection
-        // service.connection.close()
-    }
+    // for service in running_services {
+    // TODO: safety close connection
+    // service.connection.close()
+    // }
 
     println!("Shutting down.");
     Ok(())

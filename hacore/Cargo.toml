@@ -11,4 +11,7 @@ thiserror = { workspace = true }
 ringbuf = { workspace = true }
 cpal = { workspace = true }
 opus = { workspace = true }
+nnnoiseless = { workspace = true }
+biquad = { workspace = true }
 tokio = { workspace = true }
+webrtc-audio-processing = { workspace = true }

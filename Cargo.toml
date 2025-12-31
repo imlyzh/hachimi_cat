@@ -19,6 +19,9 @@ clap = { version = "4.5.53", features = ["derive"] }
 
 opus = { version = "0.3.0", package = "opus" }
 cpal = "0.17.0"
+nnnoiseless = "0.5.2"
+webrtc-audio-processing = { version = "0.5.0", features = ["bundled"] }
+biquad = "0.5.0"
 
 tokio = "1.48.0"
 iroh = { version = "0.95.1", features = [
