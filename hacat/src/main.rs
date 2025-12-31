@@ -1,9 +1,11 @@
 use std::str::FromStr;
 
+use bytes::Bytes;
 use clap::{Parser, Subcommand};
 use hacore::AudioEngine;
-use iroh::{Endpoint, EndpointId};
+use iroh::{Endpoint, EndpointId, endpoint::Connection};
 use ringbuf::{HeapRb, traits::Split};
+use tokio::task::JoinHandle;
 
 #[derive(Parser)]
 #[command(name = "hacat")]
@@ -18,19 +20,18 @@ enum Commands {
     Call { id: String },
 }
 
+const ALPN: &[u8] = b"hacat/opus/1.0";
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    let (local_prod, local_cons) = tokio::sync::mpsc::channel(100);
-    let remote_buf = HeapRb::new(4);
-    let (remote_prod, remote_cons) = remote_buf.split();
-
     let mdns = iroh::discovery::mdns::MdnsDiscovery::builder();
     let dht = iroh::discovery::pkarr::dht::DhtDiscovery::builder();
 
-    let alpn = b"my-custom-protocol/1.0".to_vec();
-    let alpns = vec![alpn.clone()];
+    let alpns = vec![ALPN.to_vec()];
+
+    let mut running_services = vec![];
 
     match cli.command {
         Commands::Listen => {
@@ -40,18 +41,15 @@ async fn main() -> anyhow::Result<()> {
                 .alpns(alpns)
                 .bind()
                 .await?;
-            let myid = endpoint.id();
-            println!("local id: {}", myid);
-
-            let ae = AudioEngine::build(local_prod.clone(), remote_cons)?;
+            let local_id = endpoint.id();
+            println!("local id: {}", local_id);
 
             while let Some(incoming) = endpoint.accept().await {
                 let connecting = incoming.accept()?;
                 let connection = connecting.await?;
 
-                // let frame = connection.read_datagram().await?;
-                //TODO
-                // connection.send_datagram(Bytes::from(value)).await?;
+                let audio_services = AudioServices::build(connection).await?;
+                running_services.push(audio_services);
             }
         }
         Commands::Call { id } => {
@@ -61,16 +59,60 @@ async fn main() -> anyhow::Result<()> {
                 .alpns(alpns)
                 .bind()
                 .await?;
-            let r = endpoint.connect(EndpointId::from_str(&id)?, &alpn);
+            let connection = endpoint.connect(EndpointId::from_str(&id)?, ALPN).await?;
 
-            let ae = AudioEngine::build(local_prod, remote_cons)?;
+            let audio_services = AudioServices::build(connection).await?;
+            running_services.push(audio_services);
         }
     }
 
     tokio::signal::ctrl_c().await?;
 
-    // Gracefully shut down the endpoint
+    for service in running_services {
+        // TODO: safety close connection
+    }
+
     println!("Shutting down.");
-    // router.shutdown().await?;
     Ok(())
+}
+
+pub struct AudioServices {
+    pub ae: AudioEngine,
+    pub connection: Connection,
+    pub sender_thread: JoinHandle<()>,
+    pub reciver_thread: JoinHandle<()>,
+}
+
+impl AudioServices {
+    async fn build(connection: Connection) -> anyhow::Result<Self> {
+        let (local_prod, mut local_cons) = tokio::sync::mpsc::channel(100);
+        let remote_buf = HeapRb::new(4);
+        let (remote_prod, remote_cons) = remote_buf.split();
+
+        let conn_for_send = connection.clone();
+        let conn_for_recv = connection.clone();
+
+        let sender_thread = tokio::task::spawn(async move {
+            while let Some(frame) = local_cons.recv().await {
+                // TODO: encoding rtp frame
+                conn_for_send.send_datagram(Bytes::from(frame)).unwrap();
+            }
+        });
+
+        let reciver_thread = tokio::task::spawn(async move {
+            loop {
+                let read_datagram = conn_for_recv.read_datagram().await.unwrap();
+                // TODO: decoding rtp frame
+                // TODO: jitter
+                // TODO: send to remote_prod
+            }
+        });
+
+        Ok(AudioServices {
+            ae: AudioEngine::build(local_prod, remote_cons)?,
+            connection,
+            sender_thread,
+            reciver_thread,
+        })
+    }
 }

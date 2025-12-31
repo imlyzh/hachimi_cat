@@ -1446,6 +1446,7 @@ name = "hacat"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "clap 4.5.53",
  "cpal",
  "hacore",
@@ -2192,7 +2193,6 @@ checksum = "37c93d8daa9d8a012fd8ab92f088405fb202ea0b6ab73ee2482ae66af4f42091"
 name = "libhachimi"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "biquad",
  "fdaf-aec",
  "nnnoiseless",

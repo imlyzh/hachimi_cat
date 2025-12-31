@@ -51,6 +51,13 @@ pub struct AudioProcessor {
     nlp_prod: BufProd,
     nlp_cons: BufCons,
 }
+
+impl Default for AudioProcessor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AudioProcessor {
     pub fn new() -> Self {
         let coeffs = Coefficients::<f32>::from_params(

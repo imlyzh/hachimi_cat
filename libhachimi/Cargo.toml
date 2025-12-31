@@ -4,9 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = { workspace = true }
 thiserror = { workspace = true }
-# tracing = { workspace = true }
 ringbuf = { workspace = true }
 tokio = { workspace = true }
 fdaf-aec = { git = "https://github.com/imlyzh/fdaf-aec" }

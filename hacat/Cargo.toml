@@ -9,11 +9,10 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 # tracing = { workspace = true }
 ringbuf = { workspace = true }
-
+rand = { workspace = true }
+bytes = { workspace = true }
+clap = { workspace = true }
 cpal = { workspace = true }
 opus = { workspace = true }
-
 tokio = { workspace = true }
 iroh = { workspace = true }
-rand = { workspace = true }
-clap = { workspace = true }
