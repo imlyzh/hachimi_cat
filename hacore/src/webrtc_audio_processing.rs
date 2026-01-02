@@ -40,13 +40,13 @@ impl AudioProcessor {
         let mut post_config = Config::default();
         post_config.echo_cancellation = None;
         post_config.noise_suppression = None;
-        // post_config.gain_control = Some(GainControl {
-        //     mode: webrtc_audio_processing::GainControlMode::AdaptiveDigital,
-        //     target_level_dbfs: 3,
-        //     compression_gain_db: 20,
-        //     enable_limiter: true,
-        // });
-        post_config.gain_control = None;
+        post_config.gain_control = Some(GainControl {
+            mode: webrtc_audio_processing::GainControlMode::AdaptiveDigital,
+            target_level_dbfs: 3,
+            compression_gain_db: 20,
+            enable_limiter: true,
+        });
+        // post_config.gain_control = None;
 
         let mut pre_processor = Processor::new(init_config)?;
         pre_processor.set_config(pre_config);

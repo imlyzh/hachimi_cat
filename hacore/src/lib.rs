@@ -94,6 +94,9 @@ impl AudioEngine {
                     opus::Encoder::new(SAMPLE_RATE, opus::Channels::Mono, opus::Application::Voip)
                         .unwrap();
                 encoder.set_bitrate(opus::Bitrate::Auto).unwrap();
+                encoder.set_vbr(true).unwrap();
+                // encoder.set_inband_fec(true).unwrap();
+                // encoder.set_packet_loss_perc(0).unwrap();
 
                 let mut frame = [0f32; FRAME10MS];
                 let mut output = [0u8; 4096];
