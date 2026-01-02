@@ -58,7 +58,7 @@ impl EngineBuilder for ApplePlatformAudioEngine {
                 flags: LinearPcmFlags::IS_FLOAT
                     | LinearPcmFlags::IS_PACKED
                     | LinearPcmFlags::IS_NON_INTERLEAVED,
-                channels: 1,
+                channels: 2,
             },
             Scope::Input,
             coreaudio::audio_unit::Element::Output,
@@ -171,9 +171,9 @@ impl EngineBuilder for ApplePlatformAudioEngine {
 
         vpio_output_unit.set_render_callback(move |args: Args<NonInterleaved<f32>>| {
             let Args { mut data, .. } = args;
+            // 只能象征性催一下
+            // audio_process_2.thread().unpark();
             for channel in data.channels_mut() {
-                // 只能象征性催一下
-                // audio_process_2.thread().unpark();
                 if let Some(sample) = speaker_cons.try_pop() {
                     for channel_sample in channel.iter_mut() {
                         *channel_sample = sample;
