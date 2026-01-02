@@ -2,11 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use bytes::Bytes;
 use clap::{Parser, Subcommand};
-use hacore::{
-    AudioEngine, DecodeCommand, EngineBuilder, FRAME10MS,
-    apple_platform_audio_engine::ApplePlatformAudioEngine,
-    default_audio_engine::DefaultAudioEngine,
-};
+use hacore::{AudioEngine, DecodeCommand, EngineBuilder, FRAME10MS};
 use iroh::{Endpoint, EndpointId, endpoint::Connection};
 use ringbuf::{
     HeapRb,
@@ -97,9 +93,12 @@ impl AudioServices {
         let (mut remote_prod, remote_cons) = HeapRb::new(FRAME10MS * 10).split();
 
         let ae: Arc<dyn AudioEngine> = if cfg!(target_vendor = "apple") {
-            ApplePlatformAudioEngine::build(local_prod, remote_cons)?
+            hacore::apple_platform_audio_engine::ApplePlatformAudioEngine::build(
+                local_prod,
+                remote_cons,
+            )?
         } else {
-            DefaultAudioEngine::build(local_prod, remote_cons)?
+            hacore::default_audio_engine::DefaultAudioEngine::build(local_prod, remote_cons)?
         };
         let decoder_thread = ae.get_decoder_thread();
 
