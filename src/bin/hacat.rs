@@ -24,7 +24,7 @@ enum Commands {
     Call { id: String },
 }
 
-const ALPN: &[u8] = b"hacat/opus/1.0";
+const ALPN: &[u8] = b"hacat/opus/1";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

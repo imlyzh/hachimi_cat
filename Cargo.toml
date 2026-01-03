@@ -5,7 +5,9 @@ edition = "2024"
 
 [[bin]]
 name = "hacat"
-path = "src/main.rs"
+
+[[bin]]
+name = "manbo"
 
 [workspace]
 members = ["hacore", "libhachimi"]
