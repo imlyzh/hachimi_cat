@@ -2,7 +2,9 @@ use std::{str::FromStr, sync::Arc};
 
 use bytes::Bytes;
 use clap::{Parser, Subcommand};
-use hacore::{AudioEngine, DecodeCommand, EngineBuilder, FRAME10MS};
+#[cfg(target_vendor = "apple")]
+use hacore::EngineBuilder;
+use hacore::{AudioEngine, DecodeCommand, FRAME10MS};
 use iroh::{Endpoint, EndpointId, endpoint::Connection};
 use ringbuf::{
     HeapRb,
@@ -51,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
                 let connecting = incoming.accept()?;
                 let connection = connecting.await?;
 
-                let audio_services = AudioServices::build(connection).await?;
+                let audio_services = AudioServices::build(connection)?;
                 running_services.push(audio_services);
             }
         }
@@ -64,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
                 .await?;
             let connection = endpoint.connect(EndpointId::from_str(&id)?, ALPN).await?;
 
-            let audio_services = AudioServices::build(connection).await?;
+            let audio_services = AudioServices::build(connection)?;
             running_services.push(audio_services);
         }
     }
@@ -88,7 +90,7 @@ pub struct AudioServices {
 }
 
 impl AudioServices {
-    async fn build(connection: Connection) -> anyhow::Result<Self> {
+    fn build(connection: Connection) -> anyhow::Result<Self> {
         let (local_prod, mut local_cons) = tokio::sync::mpsc::channel(100);
         let (mut remote_prod, remote_cons) = HeapRb::new(FRAME10MS * 10).split();
 

@@ -6,6 +6,7 @@ pub mod apple_platform_audio_engine;
 pub mod apple_platform_audio_processor;
 pub mod cross_platform_audio_processor;
 pub mod default_audio_engine;
+pub mod empty_audio_processor;
 
 // use libhachimi::audio_processing::AudioProcessor;
 

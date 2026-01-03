@@ -13,13 +13,13 @@ use libhachimi::{AudioProcessor, constant::*};
 use crate::{
     AudioEngine, DecodeCommand, EngineBuilder, FRAME10MS, FRAME20MS,
     apple_platform_audio_processor::ApplePlatformAudioProcessor,
+    empty_audio_processor::EmptyAudioProcessor,
 };
 
 // use coreaudio::audio_unit::
 
 pub struct ApplePlatformAudioEngine {
-    vpio_input_unit: AudioUnit,
-    vpio_output_unit: AudioUnit,
+    vpio_unit: AudioUnit,
     pub decode_process: Arc<JoinHandle<()>>,
 }
 
@@ -37,11 +37,12 @@ impl EngineBuilder for ApplePlatformAudioEngine {
         decoder_input: HeapCons<DecodeCommand>,
     ) -> anyhow::Result<Arc<Self>> {
         // config
-        let mut vpio_input_unit = AudioUnit::new(IOType::VoiceProcessingIO)?;
-        let mut vpio_output_unit = AudioUnit::new(IOType::VoiceProcessingIO)?;
-        vpio_input_unit.set_stream_format(
+        let mut vpio_unit = AudioUnit::new(IOType::VoiceProcessingIO)?;
+        vpio_unit.uninitialize()?;
+
+        vpio_unit.set_stream_format(
             StreamFormat {
-                sample_rate: 48000f64,
+                sample_rate: 48000.0,
                 sample_format: coreaudio::audio_unit::SampleFormat::F32,
                 flags: LinearPcmFlags::IS_FLOAT
                     | LinearPcmFlags::IS_PACKED
@@ -51,14 +52,15 @@ impl EngineBuilder for ApplePlatformAudioEngine {
             Scope::Output,
             coreaudio::audio_unit::Element::Input,
         )?;
-        vpio_output_unit.set_stream_format(
+
+        vpio_unit.set_stream_format(
             StreamFormat {
-                sample_rate: 48000f64,
+                sample_rate: 48000.0,
                 sample_format: coreaudio::audio_unit::SampleFormat::F32,
                 flags: LinearPcmFlags::IS_FLOAT
                     | LinearPcmFlags::IS_PACKED
                     | LinearPcmFlags::IS_NON_INTERLEAVED,
-                channels: 2,
+                channels: 1,
             },
             Scope::Input,
             coreaudio::audio_unit::Element::Output,
@@ -108,7 +110,7 @@ impl EngineBuilder for ApplePlatformAudioEngine {
         let audio_process = std::thread::Builder::new()
             .name("Audio Pipeline Thread".to_owned())
             .spawn(move || {
-                let mut ap = ApplePlatformAudioProcessor::build().unwrap();
+                let mut ap = EmptyAudioProcessor::build().unwrap();
                 let mut mic_cons = mic_cons;
                 let mut ap_ref_input = ap_ref_input;
                 let mut ap_mic_output = ap_mic_output;
@@ -160,26 +162,25 @@ impl EngineBuilder for ApplePlatformAudioEngine {
             .unwrap();
         let decode_process = Arc::new(decode_process);
 
-        vpio_input_unit.set_input_callback(move |args: Args<NonInterleaved<f32>>| {
+        vpio_unit.set_input_callback(move |args: Args<NonInterleaved<f32>>| {
             let Args { data, .. } = args;
             for channel in data.channels() {
                 mic_prod.push_slice(channel);
-                audio_process_1.thread().unpark();
             }
+            audio_process_1.thread().unpark();
             Ok(())
         })?;
 
-        vpio_output_unit.set_render_callback(move |args: Args<NonInterleaved<f32>>| {
+        vpio_unit.set_render_callback(move |args: Args<NonInterleaved<f32>>| {
             let Args { mut data, .. } = args;
             // 只能象征性催一下
             // audio_process_2.thread().unpark();
+            // FIXME
             for channel in data.channels_mut() {
-                if let Some(sample) = speaker_cons.try_pop() {
-                    for channel_sample in channel.iter_mut() {
+                for channel_sample in channel.iter_mut() {
+                    if let Some(sample) = speaker_cons.try_pop() {
                         *channel_sample = sample;
-                    }
-                } else {
-                    for channel_sample in channel.iter_mut() {
+                    } else {
                         *channel_sample = 0.0;
                     }
                 }
@@ -187,14 +188,40 @@ impl EngineBuilder for ApplePlatformAudioEngine {
             Ok(())
         })?;
 
-        vpio_input_unit.start()?;
-        vpio_output_unit.start()?;
+        // vpio_unit.set_input_callback(move |args: Args<Interleaved<f32>>| {
+        //     let Args { data, .. } = args;
+        //     mic_prod.push_slice(data.buffer);
+        //     audio_process_1.thread().unpark();
+        //     Ok(())
+        // })?;
+
+        // vpio_unit.set_render_callback(move |args: Args<Interleaved<f32>>| {
+        //     let Args { data, .. } = args;
+        //     // 只能象征性催一下
+        //     // audio_process_2.thread().unpark();
+        //     for frame in data.buffer.chunks_exact_mut(data.channels) {
+        //         if let Some(sample) = speaker_cons.try_pop() {
+        //             for channel_sample in frame.iter_mut() {
+        //                 *channel_sample = sample;
+        //             }
+        //         } else {
+        //             for channel_sample in frame.iter_mut() {
+        //                 *channel_sample = 0.0;
+        //             }
+        //         }
+        //     }
+        //     Ok(())
+        // })?;
+
+        vpio_unit.initialize()?;
+
+        vpio_unit.start()?;
+
         println!("Audio system running.");
 
         Ok(Arc::new(ApplePlatformAudioEngine {
+            vpio_unit,
             decode_process,
-            vpio_input_unit,
-            vpio_output_unit,
         }))
     }
 }
@@ -209,24 +236,24 @@ impl AudioEngine for ApplePlatformAudioEngine {
 
     fn play(&mut self) -> anyhow::Result<()> {
         // reset pipelie ringbuffer
-        self.vpio_input_unit.start()?;
-        self.vpio_output_unit.start()?;
+        self.vpio_unit.start()?;
         Ok(())
     }
 
     fn pause(&mut self) -> anyhow::Result<()> {
-        self.vpio_input_unit.stop()?;
-        self.vpio_output_unit.stop()?;
+        self.vpio_unit.stop()?;
         Ok(())
     }
 
     fn enable_mic(&mut self) -> anyhow::Result<()> {
-        self.vpio_input_unit.start()?;
+        // self.vpio_input_unit.start()?;
+        // TODO
         Ok(())
     }
 
     fn disable_mic(&mut self) -> anyhow::Result<()> {
-        self.vpio_input_unit.stop()?;
+        // self.vpio_input_unit.stop()?;
+        // TODO
         Ok(())
     }
 }
