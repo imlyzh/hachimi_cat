@@ -94,8 +94,10 @@ impl AudioServices {
         let (mut recv_data_prod, recv_data_cons) = HeapRb::new(FRAME20MS * 4).split();
 
         #[cfg(not(target_vendor = "apple"))]
-        let ae: Arc<dyn AudioEngine> =
-            hacore::default_audio_engine::DefaultAudioEngine::build(local_prod, remote_cons)?;
+        let ae: Arc<dyn AudioEngine> = hacore::default_audio_engine::DefaultAudioEngine::build(
+            send_data_prod,
+            recv_data_cons,
+        )?;
         #[cfg(target_vendor = "apple")]
         let ae: Arc<dyn AudioEngine> =
             hacore::apple_platform_audio_engine::ApplePlatformAudioEngine::build(
