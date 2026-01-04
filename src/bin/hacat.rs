@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
                 let connecting = incoming.accept()?;
                 let connection = connecting.await?;
 
-                audio_services.add_connection(connection);
+                audio_services.add_connection(connection)?;
             }
         }
         Commands::Call { id } => {
@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
                 .await?;
             let connection = endpoint.connect(EndpointId::from_str(&id)?, ALPN).await?;
 
-            audio_services.add_connection(connection);
+            audio_services.add_connection(connection)?;
         }
     }
 
@@ -131,19 +131,19 @@ impl AudioServices {
         })
     }
 
-    pub fn add_connection(&mut self, connection: Connection) {
+    pub fn add_connection(&mut self, connection: Connection) -> anyhow::Result<()> {
         let conn_for_send = connection.clone();
         let conn_for_recv = connection.clone();
 
         let (recv_data_prod, recv_data_cons) = tokio::sync::mpsc::channel(2);
-        let decoder_thread = build_decoder(recv_data_cons, self.decode_frame_prod.clone()).unwrap();
+        let decoder_thread = build_decoder(recv_data_cons, self.decode_frame_prod.clone())?;
         let mut send_data_cons = self.send_data_cons.resubscribe();
 
         let sender_thread = tokio::task::spawn(async move {
             while let Ok(frame) = send_data_cons.recv().await {
                 // TODO: encoding rtp frame
                 if conn_for_send.send_datagram(frame).is_err() {
-                    // TODO: cancellization
+                    // TODO: cancel
                     return;
                 }
             }
@@ -169,5 +169,6 @@ impl AudioServices {
                 decoder_thread,
             },
         );
+        Ok(())
     }
 }
