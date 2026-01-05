@@ -56,13 +56,17 @@
             pkgs.gnumake
             pkgs.autoconf
             pkgs.automake
+            pkgs.cmake
 
             # 使用我们的兼容性包装器
-            cmakeSmart
+            # cmakeSmart
 
             # MinGW 工具链
             pkgsMinGW.stdenv.cc
             pkgsMinGW.binutils
+
+            pkgs.webrtc-audio-processing
+            pkgs.libopus
           ]
           ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
             # pkgs.libiconv
@@ -71,7 +75,7 @@
           ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             pkgs.libtool
             llvm.libclang
-            # llvm.libllvm
+            llvm.libllvm
             llvm.clang
             pkgs.alsa-lib.dev
           ];
@@ -91,15 +95,15 @@
             LIBCLANG_PATH = "${llvm.libclang.lib}/lib";
           };
 
-          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER = "x86_64-w64-mingw32-gcc";
-          CC_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-gcc";
-          CXX_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-g++";
-          AR_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-ar";
+          # CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER = "x86_64-w64-mingw32-gcc";
+          # CC_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-gcc";
+          # CXX_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-g++";
+          # AR_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-ar";
 
-          CMAKE_SYSTEM_NAME_x86_64_pc_windows_gnu = "Windows";
+          # CMAKE_SYSTEM_NAME_x86_64_pc_windows_gnu = "Windows";
 
-          # 解决符号过多报错
-          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS = "-C link-arg=-Wl,--exclude-all-symbols";
+          # # 解决符号过多报错
+          # CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS = "-C link-arg=-Wl,--exclude-all-symbols";
 
           shellHook = ''
             echo "🚀 Build Environment Ready"
