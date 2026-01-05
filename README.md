@@ -11,7 +11,6 @@ An open-source voice calling and conferencing software that can be "low-cost and
    2. [ ] Jitter内调用Decoder，操作Decoder完成FEC和PLC行为
 4. [ ] Mixter 混音器，拥有接受多个语音通道输入程度的能力
 5. [ ] 实时性配置，降低端到端延迟
-6. [ ] 更换线程休眠/唤醒方案
 
 ## Run
 
