@@ -15,12 +15,14 @@
           inherit system overlays;
         };
 
+        llvm = pkgs.llvmPackages_19;
         pkgsMinGW = pkgs.pkgsCross.mingwW64;
 
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = [ "rust-src" "rust-analyzer" ];
           targets = [ "x86_64-pc-windows-gnu" "wasm32-unknown-unknown" ];
         };
+
 
         # --- 核心修复：智能 CMake 包装器 ---
         # 强制注入 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 解决 audiopus 报错
@@ -54,8 +56,6 @@
             pkgs.gnumake
             pkgs.autoconf
             pkgs.automake
-            pkgs.libtool
-            pkgs.m4
 
             # 使用我们的兼容性包装器
             cmakeSmart
@@ -69,8 +69,9 @@
             pkgs.glibtool
           ]
           ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            pkgs.libtool
             pkgs.libclang
-            pkgs.alsa-lib
+            pkgs.alsa-lib.dev
           ];
 
           # -----------------------------------------------------------
@@ -83,6 +84,10 @@
           # -----------------------------------------------------------
           # 环境变量
           # -----------------------------------------------------------
+          env = {
+            GREET = "devenv";
+            LIBCLANG_PATH = "${llvm.libclang.lib}/lib";
+          };
 
           CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER = "x86_64-w64-mingw32-gcc";
           CC_x86_64_pc_windows_gnu = "x86_64-w64-mingw32-gcc";
