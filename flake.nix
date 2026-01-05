@@ -74,6 +74,7 @@
           ]
           ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             pkgs.libtool
+            pkgs.mold
             llvm.libclang
             llvm.libllvm
             llvm.clang
