@@ -70,7 +70,9 @@
           ]
           ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             pkgs.libtool
-            pkgs.libclang
+            llvm.libclang
+            # llvm.libllvm
+            llvm.clang
             pkgs.alsa-lib.dev
           ];
 
