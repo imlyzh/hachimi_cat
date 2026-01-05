@@ -123,9 +123,6 @@ pub fn mix(
     let mut mixer_output = mixer_output;
 
     loop {
-        if mixer_input.sender_strong_count() > 1 {
-            unimplemented!("mixer unsupport multiple input");
-        }
         if mixer_output.vacant_len() >= FRAME20MS {
             match mixer_input.try_recv() {
                 Ok(frame) => {
