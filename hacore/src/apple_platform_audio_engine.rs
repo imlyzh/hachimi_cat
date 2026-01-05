@@ -5,15 +5,12 @@ use coreaudio::audio_unit::{
     audio_format::LinearPcmFlags,
     render_callback::{Args, data::NonInterleaved},
 };
-use ringbuf::{HeapRb, traits::*};
-
-// use libhachimi::audio_processing::AudioProcessor;
-use libhachimi::AudioProcessor;
 
 use crate::{
     AudioEngine,
+    AudioProcessor,
     EngineBuilder,
-    FRAME20MS,
+    FRAME10MS,
     apple_platform_audio_processor::ApplePlatformAudioProcessor,
     // empty_audio_processor::EmptyAudioProcessor,
 };
@@ -22,7 +19,6 @@ use crate::{
 
 pub struct ApplePlatformAudioEngine {
     vpio_unit: AudioUnit,
-    // pub decode_process: Arc<JoinHandle<()>>,
 }
 
 impl Drop for ApplePlatformAudioEngine {
@@ -44,8 +40,8 @@ impl EngineBuilder for ApplePlatformAudioEngine {
     /// no two threads enter this function simultaneously.
     /// TODO: Rewrite this function.
     fn build(
-        encoder_input: ringbuf::HeapProd<f32>,
-        decoder_output: ringbuf::HeapCons<f32>,
+        encoder_input: rtrb::Producer<f32>,
+        decoder_output: rtrb::Consumer<f32>,
         encode_thread: std::thread::JoinHandle<()>,
         mixer_thread: Arc<std::thread::JoinHandle<()>>,
     ) -> anyhow::Result<Arc<Self>> {
@@ -81,16 +77,8 @@ impl EngineBuilder for ApplePlatformAudioEngine {
 
         // buffer init
 
-        let mic_buf = HeapRb::<f32>::new(FRAME20MS * 2);
-        let (mut mic_prod, mic_cons) = mic_buf.split();
-
-        let speaker_buf = HeapRb::<f32>::new(FRAME20MS * 2);
-        let (speaker_prod, mut speaker_cons) = speaker_buf.split();
-
-        // let ap_to_encoder = HeapRb::<f32>::new(FRAME20MS * 2);
-        // let (ap_mic_output, mut encoder_input) = ap_to_encoder.split();
-        // let decoder_to_ap = HeapRb::<f32>::new(FRAME20MS * 2);
-        // let (mut decoder_output, ap_ref_input) = decoder_to_ap.split();
+        let (mut mic_prod, mic_cons) = rtrb::RingBuffer::new(FRAME10MS * 4);
+        let (speaker_prod, mut speaker_cons) = rtrb::RingBuffer::new(FRAME10MS * 4);
 
         // start threads
 
@@ -117,7 +105,16 @@ impl EngineBuilder for ApplePlatformAudioEngine {
         vpio_unit.set_input_callback(move |args: Args<NonInterleaved<f32>>| {
             let Args { data, .. } = args;
             for channel in data.channels() {
-                mic_prod.push_slice(channel);
+                match mic_prod.write_chunk(channel.len()) {
+                    Ok(mut chunk) => {
+                        let (w, _) = chunk.as_mut_slices();
+                        w.copy_from_slice(channel);
+                        chunk.commit_all();
+                    }
+                    Err(_) => {
+                        audio_process_0.thread().unpark();
+                    }
+                }
             }
             audio_process_0.thread().unpark();
             Ok(())
@@ -128,14 +125,16 @@ impl EngineBuilder for ApplePlatformAudioEngine {
             // FIXME
             for channel in data.channels_mut() {
                 for channel_sample in channel.iter_mut() {
-                    if let Some(sample) = speaker_cons.try_pop() {
+                    if let Ok(sample) = speaker_cons.pop() {
                         *channel_sample = sample;
                     } else {
                         *channel_sample = 0.0;
                     }
                 }
             }
-            audio_process_1.thread().unpark();
+            if speaker_cons.slots() < FRAME10MS * 2 {
+                audio_process_1.thread().unpark();
+            }
             Ok(())
         })?;
 
@@ -175,13 +174,6 @@ impl EngineBuilder for ApplePlatformAudioEngine {
 }
 
 impl AudioEngine for ApplePlatformAudioEngine {
-    // fn notify_decoder(&self) {
-    //     self.decode_process.thread().unpark();
-    // }
-    // fn get_decoder_thread(&self) -> Arc<JoinHandle<()>> {
-    // self.decode_process.clone()
-    // }
-
     fn play(&mut self) -> anyhow::Result<()> {
         // reset pipelie ringbuffer
         self.vpio_unit.start()?;
@@ -195,10 +187,10 @@ impl AudioEngine for ApplePlatformAudioEngine {
 }
 
 fn audiop(
-    encoder_input: ringbuf::HeapProd<f32>,
-    decoder_output: ringbuf::HeapCons<f32>,
-    mut mic_cons: ringbuf::HeapCons<f32>,
-    mut speaker_prod: ringbuf::HeapProd<f32>,
+    encoder_input: rtrb::Producer<f32>,
+    decoder_output: rtrb::Consumer<f32>,
+    mut mic_cons: rtrb::Consumer<f32>,
+    mut speaker_prod: rtrb::Producer<f32>,
     encode_thread: std::thread::JoinHandle<()>,
     mixer_thread: Arc<std::thread::JoinHandle<()>>,
 ) -> anyhow::Result<()> {

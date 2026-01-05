@@ -7,7 +7,6 @@ use hachimi_cat::{DecodeCommand, DecodedFrame, build_decoder, build_encoder, bui
 use hacore::AudioEngine;
 use hacore::{EngineBuilder, FRAME20MS};
 use iroh::{Endpoint, EndpointId, endpoint::Connection};
-use ringbuf::{HeapRb, traits::Split};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
@@ -96,8 +95,8 @@ pub struct ConnectPair {
 
 impl AudioServices {
     fn new() -> anyhow::Result<Self> {
-        let (ae_mic_output, encoder_input) = HeapRb::new(FRAME20MS * 2).split();
-        let (mixer_output, ae_ref_input) = HeapRb::new(FRAME20MS * 2).split();
+        let (ae_mic_output, encoder_input) = rtrb::RingBuffer::new(FRAME20MS * 4);
+        let (mixer_output, ae_ref_input) = rtrb::RingBuffer::new(FRAME20MS * 4);
 
         let (send_data_prod, send_data_cons) = tokio::sync::broadcast::channel(2);
         let encoder_thread = build_encoder(encoder_input, send_data_prod)?;

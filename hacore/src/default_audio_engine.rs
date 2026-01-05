@@ -1,13 +1,9 @@
 use std::sync::Arc;
 
-use ringbuf::{HeapRb, traits::*};
-
 // use libhachimi::audio_processing::AudioProcessor;
-use libhachimi::{AudioProcessor, constant::*, error};
-
 use crate::{
-    AudioEngine, EngineBuilder, FRAME20MS,
-    cross_platform_audio_processor::CrossPlatformAudioProcessor,
+    AudioEngine, AudioProcessor, EngineBuilder, FRAME10MS, SAMPLE_RATE,
+    cross_platform_audio_processor::CrossPlatformAudioProcessor, error,
 };
 
 use cpal::{
@@ -26,8 +22,8 @@ impl EngineBuilder for DefaultAudioEngine {
     /// no two threads enter this function simultaneously.
     /// TODO: Rewrite this function.
     fn build(
-        encoder_input: ringbuf::HeapProd<f32>,
-        decoder_output: ringbuf::HeapCons<f32>,
+        encoder_input: rtrb::Producer<f32>,
+        decoder_output: rtrb::Consumer<f32>,
         encode_thread: std::thread::JoinHandle<()>,
         mixer_thread: Arc<std::thread::JoinHandle<()>>,
     ) -> anyhow::Result<Arc<Self>> {
@@ -72,12 +68,8 @@ impl EngineBuilder for DefaultAudioEngine {
         let output_channels = output_config.channels as usize;
 
         // buffer init
-
-        let mic_buf = HeapRb::<f32>::new(FRAME20MS * 2);
-        let (mut mic_prod, mic_cons) = mic_buf.split();
-
-        let speaker_buf = HeapRb::<f32>::new(FRAME20MS * 2);
-        let (speaker_prod, mut speaker_cons) = speaker_buf.split();
+        let (mut mic_prod, mic_cons) = rtrb::RingBuffer::new(FRAME10MS * 4);
+        let (speaker_prod, mut speaker_cons) = rtrb::RingBuffer::new(FRAME10MS * 4);
 
         // start threads
 
@@ -104,7 +96,16 @@ impl EngineBuilder for DefaultAudioEngine {
         let input_stream = input_device.build_input_stream(
             &input_config,
             move |data: &[f32], _| {
-                mic_prod.push_slice(data);
+                match mic_prod.write_chunk(data.len()) {
+                    Ok(mut chunk) => {
+                        let (w, _) = chunk.as_mut_slices();
+                        w.copy_from_slice(data);
+                        chunk.commit_all();
+                    }
+                    Err(_) => {
+                        audio_process_0.thread().unpark();
+                    }
+                }
                 audio_process_0.thread().unpark();
             },
             |err| panic!("input error: {:?}", err),
@@ -116,7 +117,7 @@ impl EngineBuilder for DefaultAudioEngine {
             move |output: &mut [f32], _| {
                 audio_process_1.thread().unpark();
                 for frame in output.chunks_exact_mut(output_channels) {
-                    if let Some(sample) = speaker_cons.try_pop() {
+                    if let Ok(sample) = speaker_cons.pop() {
                         for channel_sample in frame.iter_mut() {
                             *channel_sample = sample;
                         }
@@ -157,10 +158,10 @@ impl AudioEngine for DefaultAudioEngine {
 }
 
 fn audiop(
-    encoder_input: ringbuf::HeapProd<f32>,
-    decoder_output: ringbuf::HeapCons<f32>,
-    mut mic_cons: ringbuf::HeapCons<f32>,
-    mut speaker_prod: ringbuf::HeapProd<f32>,
+    encoder_input: rtrb::Producer<f32>,
+    decoder_output: rtrb::Consumer<f32>,
+    mut mic_cons: rtrb::Consumer<f32>,
+    mut speaker_prod: rtrb::Producer<f32>,
     encode_thread: std::thread::JoinHandle<()>,
     mixer_thread: Arc<std::thread::JoinHandle<()>>,
 ) -> anyhow::Result<()> {

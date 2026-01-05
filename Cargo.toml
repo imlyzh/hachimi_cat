@@ -10,13 +10,13 @@ name = "hacat"
 name = "manbo"
 
 [workspace]
-members = ["hacore", "libhachimi"]
+members = ["hacore"]
 
 [workspace.dependencies]
 anyhow = "1.0.100"
 thiserror = "2.0.17"
 # tracing = "0.1.44"
-ringbuf = "0.4.8"
+rtrb = "0.3.2"
 
 rand = "0.9.2"
 bytes = "1.11.0"
@@ -33,7 +33,7 @@ iroh = { version = "0.95.1", features = [
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 # tracing = { workspace = true }
-ringbuf = { workspace = true }
+rtrb = { workspace = true }
 
 rand = { workspace = true }
 bytes = { workspace = true }

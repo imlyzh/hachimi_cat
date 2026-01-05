@@ -4,7 +4,7 @@ An open-source voice calling and conferencing software that can be "low-cost and
 
 ## TODO List (Wish List)
 
-1. [ ] RingBuf换rtrb
+1. [x] RingBuf换rtrb
 2. [ ] RTP协议封装，包括包id和端到端（采集）时间戳
 3. [ ] 实现Jitter
    1. [ ] 包排序

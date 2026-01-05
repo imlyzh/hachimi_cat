@@ -1,6 +1,5 @@
 use bytes::Bytes;
 use hacore::FRAME20MS;
-use ringbuf::traits::{Consumer, Observer, Producer};
 use tokio::sync::mpsc;
 
 #[derive(Debug, Clone)]
@@ -16,7 +15,7 @@ pub struct DecodedFrame {
 }
 
 pub fn build_encoder(
-    encoder_input: ringbuf::HeapCons<f32>,
+    encoder_input: rtrb::Consumer<f32>,
     encoder_output: tokio::sync::broadcast::Sender<Bytes>,
 ) -> anyhow::Result<std::thread::JoinHandle<()>> {
     let encoder_process = std::thread::Builder::new()
@@ -45,7 +44,7 @@ pub fn build_decoder(
 
 pub fn build_mixer(
     mixer_input: tokio::sync::mpsc::Receiver<DecodedFrame>,
-    mixer_output: ringbuf::HeapProd<f32>,
+    mixer_output: rtrb::Producer<f32>,
 ) -> anyhow::Result<std::thread::JoinHandle<()>> {
     let decode_process = std::thread::Builder::new()
         .name("Audio Encoder Thread".to_owned())
@@ -58,7 +57,7 @@ pub fn build_mixer(
 }
 
 pub fn encode(
-    encoder_input: ringbuf::HeapCons<f32>,
+    mut encoder_input: rtrb::Consumer<f32>,
     encoder_output: tokio::sync::broadcast::Sender<Bytes>,
 ) -> anyhow::Result<()> {
     let mut encoder = opus::Encoder::new(48000, opus::Channels::Mono, opus::Application::Voip)?;
@@ -67,15 +66,11 @@ pub fn encode(
     encoder.set_inband_fec(true)?;
     // encoder.set_packet_loss_perc(0)?;
 
-    let mut frame = [0f32; FRAME20MS];
     let mut output = [0u8; 4096];
 
-    let mut encoder_input = encoder_input;
-
     loop {
-        while encoder_input.occupied_len() >= FRAME20MS {
-            encoder_input.pop_slice(&mut frame);
-            let encode_size = encoder.encode_float(&frame, &mut output)?;
+        while let Ok(encoder_input) = encoder_input.read_chunk(FRAME20MS) {
+            let encode_size = encoder.encode_float(encoder_input.as_slices().0, &mut output)?;
             let _ = encoder_output.send(Bytes::copy_from_slice(&output[..encode_size]));
         }
         std::thread::park();
@@ -117,19 +112,22 @@ pub fn decode(
 
 pub fn mix(
     mixer_input: tokio::sync::mpsc::Receiver<DecodedFrame>,
-    mixer_output: ringbuf::HeapProd<f32>,
+    mixer_output: rtrb::Producer<f32>,
 ) -> anyhow::Result<()> {
     let mut mixer_input = mixer_input;
     let mut mixer_output = mixer_output;
 
     loop {
-        if mixer_output.vacant_len() >= FRAME20MS {
+        if let Ok(mut mixer_output) = mixer_output.write_chunk(FRAME20MS) {
             match mixer_input.try_recv() {
                 Ok(frame) => {
-                    mixer_output.push_slice(&frame.frame);
+                    mixer_output.as_mut_slices().0.copy_from_slice(&frame.frame);
                 }
                 Err(mpsc::error::TryRecvError::Empty) => {
-                    mixer_output.push_slice(&[0f32; FRAME20MS]);
+                    mixer_output
+                        .as_mut_slices()
+                        .0
+                        .copy_from_slice(&[0f32; FRAME20MS]);
                 }
                 Err(mpsc::error::TryRecvError::Disconnected) => {
                     return Ok(());

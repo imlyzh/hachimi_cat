@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-libhachimi = { path = "../libhachimi" }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
-ringbuf = { workspace = true }
+rtrb = { workspace = true }
+# ringbuf = { workspace = true }
 nnnoiseless = { workspace = true }
 tokio = { workspace = true }
 webrtc-audio-processing = { version = "0.5.0", features = ["bundled"] }
