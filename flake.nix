@@ -69,6 +69,7 @@
             pkgs.glibtool
           ]
           ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            pkgs.libclang
             pkgs.alsa-lib
           ];
 
