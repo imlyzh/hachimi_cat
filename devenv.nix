@@ -6,17 +6,17 @@
   # pkgs = import pkgs { inherit overlays; };
 
   rustToolchain = pkgs.rust-bin.stable.latest.default.override {
-          extensions = [
-                  "rust-src"
-                  "rust-analyzer"
-                  "rustfmt"
-                  "clippy"
-                ];
-          targets = [
-                  "wasm32-unknown-unknown"
-                  "x86_64-unknown-linux-gnu"
-                ];
-        };
+    extensions = [
+      "rust-src"
+      "rust-analyzer"
+      "rustfmt"
+      "clippy"
+    ];
+    targets = [
+      "x86_64-pc-windows-gnu"
+      "wasm32-unknown-unknown"
+    ];
+  };
 
   llvm = pkgs.llvmPackages_19;
 
